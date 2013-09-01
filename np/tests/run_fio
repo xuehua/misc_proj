@@ -1,0 +1,100 @@
+#!/bin/bash
+#run_fio.sh
+#set -x
+
+#CMD=/usr/local/bin/fio
+CMD=/usr/bin/fio
+if [ -b /dev/md0 ]; then
+   FILE=/dev/md0
+fi
+if [ -b /dev/md127 ]; then
+   FILE=/dev/md127
+fi
+
+if [ ! -b $FILE ]; then
+	echo "$FILE does not exist or is not a block device!"
+	exit
+fi
+
+#FILE=/dev/md0
+FILE=/dev/nvme0n1
+
+usage()
+{
+	echo "Usage: `basename $0` -m|--mode iomode -r|--repeat repeat_times -b|--bs=$bsblksize"
+	exit 1
+}
+
+OPTIONS=$(getopt -n`basename $0` -o"m:r:b:" -l"mode:,repeat:,bs:" -- $@)
+
+eval set -- $OPTIONS
+echo $OPTIONS
+
+#bs=4k
+bs=512
+repeat=1
+while true; do
+	case $1 in
+	-m | --mode)
+		mode=$2	
+		shift
+		;;
+	-b | --bs)
+		bs=$2
+		shift
+		;;
+	-r | --repeat)
+		repeat=$2	
+		shift
+		;;
+	--)
+		break
+		;;
+	*)
+		usage
+		;;
+	esac
+	shift
+done
+	
+times=0
+while [ $repeat -gt 0 ]; do
+	case $mode in
+		read)
+			$CMD --name=$FILE --direct=1 --rw=read --bs=$bs --size=1000M --ioengine=libaio --numjobs=1 --iodepth=256 --runtime=80 --cpus_allowed=1 
+		#	$CMD --name=$FILE --direct=1 --rw=read --bs=$bs --ioengine=libaio --numjobs=2 --iodepth=1 --runtime=80 --cpus_allowed=0 --prioclass=1 --prio=0 --loop=3
+			;;
+		write)
+			#$CMD --name=$FILE --direct=1 --rw=write --bs=$bs --size=200M --ioengine=libaio --numjobs=1 --iodepth=32 --runtime=80 --cpus_allowed=0 --prioclass=1 --prio=0 --loop=1
+			$CMD --name=$FILE --direct=1 --rw=write --bs=$bs --size=10M --ioengine=libaio --numjobs=1 --iodepth=4 --runtime=80 --cpus_allowed=2 
+			#$CMD --name=$FILE --direct=1 --rw=write --bs=$bs --ioengine=libaio --numjobs=4 --runtime=80 
+			;;
+		randread)
+			$CMD --name=$FILE --direct=1 --rw=randread --bs=$bs --ioengine=libaio --iodepth=32 --numjobs=4 --runtime=80 
+			;;
+		init_w)
+			$CMD --name=$FILE --direct=1 --rw=randwrite --bs=$bs --ioengine=libaio --numjobs=1 --runtime=80 
+			;;	
+		randwrite)
+			$CMD --name=$FILE --direct=1 --rw=randwrite --bs=$bs --ioengine=libaio --iodepth=32 --numjobs=4 --runtime=80 
+			;;
+		rw50)
+			$CMD --name=$FILE --direct=1 --rw=randrw --rwmixread 50 --bs=$bs --ioengine=libaio --numjobs=4 --runtime=80 
+			;;
+		rw75)
+			$CMD --name=$FILE --direct=1 --rw=randrw --rwmixread 75 --bs=$bs --ioengine=libaio --numjobs=4 --runtime=80 
+			;;
+		rw90)
+			$CMD --name=$FILE --direct=1 --rw=randrw --rwmixread 90 --bs=$bs --ioengine=libaio --numjobs=4 --runtime=80 
+			;;
+		*)
+			usage
+			;;
+	esac
+    let times+=1
+	let repeat-=1
+    echo "--------- Completed $times times -------------"	
+    echo
+    echo
+  
+done
