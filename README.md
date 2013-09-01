@@ -1,4 +1,4 @@
-xuehuaproj
+misc proj
 ==========
 
-Xuehua's Project
+Some misc things
